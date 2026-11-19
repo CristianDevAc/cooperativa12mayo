@@ -1,0 +1,41 @@
+<?php
+
+namespace App\Http\Controllers\Ingresos;
+
+use App\Http\Controllers\Controller;
+use App\Models\ReciboHojaRuta;
+use App\Models\User;
+use Illuminate\Contracts\View\View;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+
+class ImprimirReciboHojaRutaController extends Controller
+{
+    public function __invoke(Request $request, int $recibo): View
+    {
+        $usuario = $request->user();
+
+        abort_unless(
+            $usuario instanceof User
+            && $usuario->current_team_id !== null,
+            403
+        );
+
+        Gate::authorize('consultar-recibos-hoja-ruta');
+
+        $registro = ReciboHojaRuta::query()
+            ->where('team_id', $usuario->current_team_id)
+            ->with([
+                'team',
+                'afiliado',
+                'registradoPor',
+                'detalles',
+            ])
+            ->findOrFail($recibo);
+
+        return view(
+            'ingresos.recibos-hoja-ruta.imprimir',
+            ['recibo' => $registro]
+        );
+    }
+}
