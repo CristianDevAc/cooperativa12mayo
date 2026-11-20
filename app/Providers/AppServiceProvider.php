@@ -204,6 +204,18 @@ class AppServiceProvider extends ServiceProvider
                 ])
                 ->exists();
         });
+        Gate::define('gestionar-usuarios', function (User $user): bool {
+
+            if ($user->current_team_id === null) {
+                return false;
+            }
+
+            return DB::table('team_members')
+                ->where('team_id', $user->current_team_id)
+                ->where('user_id', $user->id)
+                ->whereIn('role', ['owner', 'admin'])
+                ->exists();
+        });
     }
 
     /**

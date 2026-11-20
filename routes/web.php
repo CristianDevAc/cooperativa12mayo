@@ -14,7 +14,15 @@ use App\Http\Controllers\Informes\InformeEconomicoImprimirController;
 |--------------------------------------------------------------------------
 */
 
-Route::view('/', 'welcome')->name('home');
+Route::get('/', function () {
+
+    if (auth()->check()) {
+        return redirect()->route('dashboard');
+    }
+
+    return redirect()->route('login');
+
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -184,6 +192,12 @@ Route::prefix('{current_team}')
             ->whereNumber('mes')
             ->middleware('can:ver-informe-economico')
             ->name('informes.economico.imprimir');
+        Route::view(
+            'usuarios',
+            'usuarios.index'
+        )
+            ->middleware('can:gestionar-usuarios')
+            ->name('usuarios.index');
 
     });
     Route::middleware(['auth', 'verified'])
