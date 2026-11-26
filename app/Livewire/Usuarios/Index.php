@@ -12,6 +12,7 @@ use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 
 class Index extends Component
 {
@@ -27,11 +28,17 @@ class Index extends Component
     public string $errorOperacion = '';
     public bool $formularioNuevoVisible = false;
 
-        public string $nuevoNombre = '';
-        public string $nuevoEmail = '';
-        public string $nuevoPassword = '';
-        public string $nuevoPassword_confirmation = '';
-        public string $nuevoRolUsuario = 'cashier';
+    public string $nuevoNombre = '';
+    public string $nuevoEmail = '';
+    public string $nuevoPassword = '';
+    public string $nuevoPassword_confirmation = '';
+    public string $nuevoRolUsuario = 'cashier';
+    #[Locked]
+    public ?int $claveUsuarioId = null;
+
+    public string $claveNueva = '';
+    public string $claveNueva_confirmation = '';
+    public string $miClaveActual = '';
 
     private function teamId(): int
     {
@@ -395,6 +402,133 @@ class Index extends Component
         $this->cancelarNuevoUsuario();
 
         $this->mensaje = 'Usuario creado correctamente.';
+    }
+    public function abrirCambioClave(int $usuarioId): void
+    {
+        Gate::authorize('gestionar-usuarios');
+
+        $rolActor = $this->rolActual();
+
+        $miembro = DB::table('team_members')
+            ->where('team_id', $this->teamId())
+            ->where('user_id', $usuarioId)
+            ->first();
+
+        abort_if(! $miembro, 404);
+
+        $esPropio = $usuarioId === (int) Auth::id();
+
+        abort_unless(
+            in_array($rolActor, ['owner', 'admin'], true)
+            && (
+                $esPropio
+                || (
+                    $miembro->role !== 'owner'
+                    && ! (
+                        $rolActor === 'admin'
+                        && $miembro->role === 'admin'
+                    )
+                )
+            ),
+            403
+        );
+
+        $this->claveUsuarioId = $usuarioId;
+        $this->claveNueva = '';
+        $this->claveNueva_confirmation = '';
+        $this->miClaveActual = '';
+
+        $this->resetValidation();
+    }
+
+    public function guardarCambioClave(): void
+    {
+        Gate::authorize('gestionar-usuarios');
+
+        abort_if($this->claveUsuarioId === null, 400);
+
+        $this->validate([
+            'claveNueva' => [
+                'required',
+                'confirmed',
+                Password::min(12)->mixedCase()->numbers()->symbols(),
+            ],
+            'miClaveActual' => ['required', 'string'],
+        ]);
+
+        $usuarioId = $this->claveUsuarioId;
+        $actorId = (int) Auth::id();
+        $teamId = $this->teamId();
+
+        DB::transaction(function () use (
+            $usuarioId,
+            $actorId,
+            $teamId
+        ) {
+            $actor = User::query()
+                ->whereKey($actorId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $rolActor = DB::table('team_members')
+                ->where('team_id', $teamId)
+                ->where('user_id', $actorId)
+                ->lockForUpdate()
+                ->value('role');
+
+            $rolDestino = DB::table('team_members')
+                ->where('team_id', $teamId)
+                ->where('user_id', $usuarioId)
+                ->lockForUpdate()
+                ->value('role');
+
+            $esPropio = $actorId === $usuarioId;
+
+            abort_unless(
+                in_array($rolActor, ['owner', 'admin'], true)
+                && $rolDestino !== null
+                && (
+                    $esPropio
+                    || (
+                        $rolDestino !== 'owner'
+                        && ! (
+                            $rolActor === 'admin'
+                            && $rolDestino === 'admin'
+                        )
+                    )
+                ),
+                403
+            );
+
+            if (! Hash::check($this->miClaveActual, $actor->password)) {
+                throw ValidationException::withMessages([
+                    'miClaveActual' => 'Tu contraseña actual no es correcta.',
+                ]);
+            }
+
+            $usuario = User::query()
+                ->whereKey($usuarioId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $usuario->forceFill([
+                'password' => Hash::make($this->claveNueva),
+                'remember_token' => null,
+            ])->save();
+
+            if (config('session.driver') === 'database' && ! $esPropio) {
+                DB::table('sessions')
+                    ->where('user_id', $usuarioId)
+                    ->delete();
+            }
+        });
+
+        $this->claveUsuarioId = null;
+        $this->claveNueva = '';
+        $this->claveNueva_confirmation = '';
+        $this->miClaveActual = '';
+
+        $this->mensaje = 'Contraseña actualizada correctamente.';
     }
     public function render()
     {

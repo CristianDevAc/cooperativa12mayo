@@ -286,8 +286,67 @@
 
     @endif
     
+    @if($claveUsuarioId !== null)
 
+        <div class="rounded-xl border border-emerald-700 bg-zinc-900 p-6 text-white">
 
+            <h2 class="mb-4 text-lg font-bold">
+                Cambiar contraseña
+            </h2>
+
+            <form wire:submit="guardarCambioClave" class="space-y-4">
+
+                <div>
+                    <label class="block mb-2">Nueva contraseña</label>
+                    <input type="password"
+                        wire:model="claveNueva"
+                        autocomplete="new-password"
+                        class="w-full rounded-lg border border-zinc-600 bg-zinc-800 p-3 text-white">
+
+                    @error('claveNueva')
+                        <p class="text-red-400 text-sm">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <div>
+                    <label class="block mb-2">Confirmar contraseña</label>
+                    <input type="password"
+                        wire:model="claveNueva_confirmation"
+                        autocomplete="new-password"
+                        class="w-full rounded-lg border border-zinc-600 bg-zinc-800 p-3 text-white">
+                </div>
+
+                <div>
+                    <label class="block mb-2">Tu contraseña actual</label>
+                    <input type="password"
+                        wire:model="miClaveActual"
+                        autocomplete="current-password"
+                        class="w-full rounded-lg border border-zinc-600 bg-zinc-800 p-3 text-white">
+
+                    @error('miClaveActual')
+                        <p class="text-red-400 text-sm">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <p class="text-xs text-zinc-400">
+                    Mínimo 12 caracteres, incluyendo mayúsculas,
+                    minúsculas, números y símbolos.
+                </p>
+
+                <button type="submit"
+                    wire:loading.attr="disabled"
+                    wire:target="guardarCambioClave"
+                    class="rounded-lg bg-emerald-700 px-5 py-3 font-bold text-white disabled:opacity-50">
+                    Guardar nueva contraseña
+                </button>
+
+            </form>
+
+        </div>
+
+    @endif
+
+    
 
     {{-- LISTA DE USUARIOS --}}
     <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
@@ -380,6 +439,24 @@
                                         Cambiar rol
                                     </button>
 
+                                @endif
+                                @if(
+                                    (int) $usuario->id === $actorId
+                                    || (
+                                        $usuario->role !== 'owner'
+                                        && ! (
+                                            $rolActor === 'admin'
+                                            && $usuario->role === 'admin'
+                                        )
+                                    )
+                                )
+                                    <button
+                                        type="button"
+                                        wire:click="abrirCambioClave({{ $usuario->id }})"
+                                        class="rounded-lg bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800"
+                                    >
+                                        Cambiar contraseña
+                                    </button>
                                 @endif
 
                             </td>
